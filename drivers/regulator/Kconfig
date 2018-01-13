@@ -827,6 +827,13 @@ config REGULATOR_CPR2_GFX
 	  requirements. This driver reads initial voltage values out of hardware
 	  fuses and CPR target quotient values out of device tree.
 
+config VOLTAGE_CONTROL
+	bool "Enable CPU voltage control"
+	depends on REGULATOR_CPR3
+	default n
+	help
+	  Enable CPU voltage control for MSM8996.
+
 config REGULATOR_CPR3
 	bool "CPR3 regulator core support"
 	help
