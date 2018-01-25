@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -203,42 +203,21 @@
 			#size-cells = <1>;
 
 			qcom,iterm-ma = <100>;
-#ifdef CONFIG_QPNP_SMBCHARGER_HW
 			qcom,fastchg-current-ma = <2000>;
-#else
-#ifdef CONFIG_PRODUCT_Z2_X
-			qcom,fastchg-current-ma = <1900>;
-#else
-			qcom,fastchg-current-ma = <2400>;
-#endif
-#endif
-			qcom,float-voltage-mv = <4400>;
+			qcom,float-voltage-mv = <4350>;
 			qcom,resume-delta-mv = <200>;
 			qcom,chg-inhibit-fg;
 			qcom,dc-psy-type = "Mains";
 			qcom,dc-psy-ma = <1500>;
 			qcom,rparasitic-uohm = <100000>;
 			qcom,bms-psy-name = "bms";
-			qcom,thermal-mitigation = <1400 500 0>;
+			qcom,thermal-mitigation = <1500 700 600 0>;
 			qcom,parallel-usb-min-current-ma = <1400>;
 			qcom,parallel-usb-9v-min-current-ma = <900>;
 			qcom,parallel-allowed-lowering-ma = <500>;
-			qcom,autoadjust-vfloat;
 			qcom,pmic-revid = <&pmi8994_revid>;
 			qcom,force-aicl-rerun;
 			qcom,aicl-rerun-period-s = <180>;
-#ifdef CONFIG_PRODUCT_Z2_X
-			qcom,warm-cc-comp = <1000>;
-#else
-			qcom,warm-cc-comp = <1300>;
-#endif
-			qcom,warm-fv-comp = <4100>;
-			qcom,cool-cc-comp = <500>;
-			qcom,cool-fv-comp = <4400>;
-			qcom,usbin-vadc = <&pmi8994_vadc>;
-			qcom,bmd-algo-disabled;
-			qcom,float-voltage-comp = <0x10>;
-			qcom,fastchg-current-comp = <1500>;
 
 			qcom,chgr@1000 {
 				reg = <0x1000 0x100>;
@@ -337,7 +316,7 @@
 			compatible = "qcom,qpnp-fg";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			qcom,resume-soc = <99>;
+			qcom,resume-soc = <95>;
 			status = "okay";
 			qcom,bcl-lm-threshold-ma = <127>;
 			qcom,bcl-mh-threshold-ma = <405>;
@@ -345,10 +324,9 @@
 			qcom,fg-chg-iterm-ma = <100>;
 			qcom,cycle-counter-en;
 			qcom,capacity-learning-on;
-			qcom,fg-cc-cv-threshold-mv = <4390>;
+			qcom,fg-cc-cv-threshold-mv = <4340>;
 			qcom,pmic-revid = <&pmi8994_revid>;
 			qcom,capacity-learning-feedback;
-			qcom,thermal-coefficients = [b7 85 b2 49 71 35];
 
 			qcom,fg-soc@4000 {
 				status = "okay";
@@ -462,13 +440,9 @@
 			      <0xb042 0x7e>;
 			reg-names = "qpnp-lpg-channel-base", "qpnp-lpg-lut-base";
 			qcom,channel-id = <3>;
-			qcom,supported-sizes = <6>,<7>, <9>;
+			qcom,supported-sizes = <6>, <9>;
 			qcom,ramp-index = <3>;
 			#pwm-cells = <2>;
-			qcom,period = <1000>;
-			qcom,lpg-dtest-line = <4>;
-			qcom,dtest-output = <2>;
-			status = "okay";
 		};
 
 		labibb: qpnp-labibb-regulator {
@@ -581,36 +555,26 @@
 			interrupts = <0x3 0xc0 0x0>,
 				     <0x3 0xc0 0x1>;
 			interrupt-names = "sc-irq", "play-irq";
+			qcom,pmic-revid = <&pmi8994_revid>;
 			vcc_pon-supply = <&pon_perph_reg>;
 			qcom,play-mode = "direct";
-#ifdef CONFIG_PRODUCT_Z2_ROW
+			qcom,wave-play-rate-us = <5263>;
 			qcom,actuator-type = "lra";
-			qcom,vmax-mv = <1695>;
-			qcom,wave-shape = "sine";
-			qcom,wave-play-rate-us = <4166>;
-			qcom,ilim-ma = <85>;
-			qcom,lra-high-z = "opt1";
-			qcom,lra-auto-res-mode = "qwd";
-			qcom,lra-res-cal-period = <4>;
-			//qcom,correct-lra-drive-freq;
-			//qcom,misc-trim-error-rc19p2-clk-reg-present;
+			qcom,wave-shape = "square";
+			qcom,vmax-mv = <2000>;
+			qcom,ilim-ma = <800>;
+			qcom,sc-deb-cycles = <8>;
 			qcom,int-pwm-freq-khz = <505>;
+			qcom,en-brake;
+			qcom,brake-pattern = [03 03 00 00];
+			qcom,use-play-irq;
+			qcom,use-sc-irq;
 			qcom,wave-samples = [3e 3e 3e 3e 3e 3e 3e 3e];
 			qcom,wave-rep-cnt = <1>;
 			qcom,wave-samp-rep-cnt = <1>;
-			qcom,en-brake;
-			qcom,brake-pattern = [03 03 00 00];
-#else
-			qcom,actuator-type = "erm";
-			qcom,vmax-mv = <3200>;
-			qcom,wave-shape = "square";
-			//qcom,wave-play-rate-us = <5263>;//0~20475
-			qcom,ilim-ma = <105>;
-			qcom,int-pwm-freq-khz = <253>;//lowest:253Khz
-#endif
-			qcom,sc-deb-cycles = <8>;
-			qcom,use-play-irq;
-			qcom,use-sc-irq;
+			qcom,lra-high-z = "opt1";
+			qcom,lra-auto-res-mode = "qwd";
+			qcom,lra-res-cal-period = <4>;
 		};
 
 		qcom,leds@d000 {
@@ -621,56 +585,42 @@
 
 			red_led: qcom,rgb_0 {
 				label = "rgb";
-				linux,name = "led:rgb_red";
+				qcom,id = <3>;
+				qcom,use-blink;
 				qcom,mode = "pwm";
 				pwms = <&pmi8994_pwm_3 0 0>;
 				qcom,pwm-us = <1000>;
-				qcom,start-idx=<0>;
-				//qcom,ramp-step-ms=<75>;
-				qcom,duty-pcts=[00 12 24 36 48 63 63 63 48 36 24 12 00];
-				qcom,duty-pcts1=[00 16];
-				qcom,lut-flags=<17>;
-				qcom,pause-lo=<3000>;
 				qcom,max-current = <12>;
 				qcom,default-state = "off";
-				qcom,id = <3>;
-				qcom,use-blink;
+				linux,name = "red";
+				linux,default-trigger =
+					"battery-charging";
 			};
 
 			green_led: qcom,rgb_1 {
 				label = "rgb";
-				linux,name = "led:rgb_green";
+				qcom,id = <4>;
+				qcom,use-blink;
 				qcom,mode = "pwm";
 				pwms = <&pmi8994_pwm_2 0 0>;
 				qcom,pwm-us = <1000>;
-				qcom,start-idx=<0>;
-				//qcom,ramp-step-ms=<75>;
-				qcom,duty-pcts=[00 12 24 36 48 63 63 63 48 36 24 12 00];
-				qcom,duty-pcts1=[00 16];
-				qcom,lut-flags=<17>;
-				qcom,pause-lo=<3000>;
 				qcom,max-current = <12>;
 				qcom,default-state = "off";
-				qcom,id = <4>;
-				qcom,use-blink;
+				linux,name = "green";
+				linux,default-trigger = "battery-full";
 			};
 
 			blue_led: qcom,rgb_2 {
 				label = "rgb";
-				linux,name = "led:rgb_blue";
+				qcom,id = <5>;
+				qcom,use-blink;
 				qcom,mode = "pwm";
 				pwms = <&pmi8994_pwm_1 0 0>;
 				qcom,pwm-us = <1000>;
-				qcom,start-idx=<0>;
-				//qcom,ramp-step-ms=<75>;
-				qcom,duty-pcts=[00 12 24 36 48 63 63 63 48 36 24 12 00];
-				qcom,duty-pcts1=[00 16];
-				qcom,lut-flags=<17>;
-				qcom,pause-lo=<3000>;
 				qcom,max-current = <12>;
 				qcom,default-state = "off";
-				qcom,id = <5>;
-				qcom,use-blink;
+				linux,name = "blue";
+				linux,default-trigger = "boot-indication";
 			};
 		};
 
@@ -705,11 +655,7 @@
 						"flash0_trigger";
 				qcom,id = <0>;
 				qcom,duration = <1280>;
-#ifdef CONFIG_PRODUCT_Z2_PLUS
-				qcom,current = <800>;
-#else
-				qcom,current = <400>;
-#endif
+				qcom,current = <625>;
 				qcom,max-current = <1000>;
 			};
 
@@ -720,7 +666,7 @@
 						"flash1_trigger";
 				qcom,id = <1>;
 				qcom,duration = <1280>;
-				qcom,current = <400>;
+				qcom,current = <625>;
 				qcom,max-current = <1000>;
 			};
 
@@ -730,7 +676,7 @@
 				qcom,default-led-trigger =
 						"torch0_trigger";
 				qcom,id = <0>;
-				qcom,current = <200>;
+				qcom,current = <120>;
 				qcom,max-current = <200>;
 			};
 
@@ -740,7 +686,7 @@
 				qcom,default-led-trigger =
 						"torch1_trigger";
 				qcom,id = <1>;
-				qcom,current = <40>;
+				qcom,current = <120>;
 				qcom,max-current = <200>;
 			};
 
