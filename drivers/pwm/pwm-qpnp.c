@@ -1216,6 +1216,7 @@ static int qpnp_lpg_configure_lut_states(struct qpnp_pwm_chip **chips,
 	return rc;
 }
 
+
 static inline int qpnp_enable_pwm_mode(struct qpnp_pwm_chip *chip)
 {
 	if (chip->pwm_config.supported_sizes == QPNP_PWM_SIZE_7_8_BIT)
