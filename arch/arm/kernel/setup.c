@@ -282,6 +282,14 @@ int __pure cpu_architecture(void)
 	return __cpu_architecture;
 }
 
+int is_testmode = 0;
+static int __init early_testmode(char *p)
+{
+	is_testmode = simple_strtoul(p,NULL,0);
+	return 0;
+}
+early_param("testmode",early_testmode);
+
 static int cpu_has_aliasing_icache(unsigned int arch)
 {
 	int aliasing_icache;
