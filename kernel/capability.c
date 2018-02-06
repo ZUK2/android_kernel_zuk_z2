@@ -454,6 +454,13 @@ bool capable(int cap)
 }
 EXPORT_SYMBOL(capable);
 
+
+bool capable_noaudit(int cap)
+{
+	return ns_capable_noaudit(&init_user_ns, cap);
+}
+EXPORT_SYMBOL(capable_noaudit);
+
 /**
  * capable_wrt_inode_uidgid - Check nsown_capable and uid and gid mapped
  * @inode: The inode in question
