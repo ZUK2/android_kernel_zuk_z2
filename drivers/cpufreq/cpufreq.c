@@ -28,7 +28,15 @@
 #include <linux/slab.h>
 #include <linux/suspend.h>
 #include <linux/tick.h>
+#ifdef CONFIG_SMP
+#include <linux/sched.h>
+#endif
 #include <trace/events/power.h>
+
+/* HACK: Prevent big cluster turned off when changing governor settings. */
+#ifdef CONFIG_MSM_HOTPLUG
+#include <linux/workqueue.h>
+#endif
 
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
@@ -118,6 +126,12 @@ bool have_governor_per_policy(void)
 	return !!(cpufreq_driver->flags & CPUFREQ_HAVE_GOVERNOR_PER_POLICY);
 }
 EXPORT_SYMBOL_GPL(have_governor_per_policy);
+
+bool cpufreq_driver_is_slow(void)
+{
+	return !(cpufreq_driver->flags & CPUFREQ_DRIVER_FAST);
+}
+EXPORT_SYMBOL_GPL(cpufreq_driver_is_slow);
 
 struct kobject *get_governor_parent_kobj(struct cpufreq_policy *policy)
 {
@@ -295,6 +309,50 @@ static inline void adjust_jiffies(unsigned long val, struct cpufreq_freqs *ci)
 }
 #endif
 
+/*********************************************************************
+ *               FREQUENCY INVARIANT CPU CAPACITY                    *
+ *********************************************************************/
+
+static DEFINE_PER_CPU(unsigned long, freq_scale) = SCHED_CAPACITY_SCALE;
+static DEFINE_PER_CPU(unsigned long, max_freq_scale) = SCHED_CAPACITY_SCALE;
+
+static void
+scale_freq_capacity(struct cpufreq_policy *policy, struct cpufreq_freqs *freqs)
+{
+	unsigned long cur = freqs ? freqs->new : policy->cur;
+	unsigned long scale = (cur << SCHED_CAPACITY_SHIFT) / policy->max;
+	struct cpufreq_cpuinfo *cpuinfo = &policy->cpuinfo;
+	int cpu;
+
+	pr_debug("cpus %*pbl cur/cur max freq %lu/%u kHz freq scale %lu\n",
+		 cpumask_pr_args(policy->cpus), cur, policy->max, scale);
+
+	for_each_cpu(cpu, policy->cpus)
+		per_cpu(freq_scale, cpu) = scale;
+
+	if (freqs)
+		return;
+
+	scale = (policy->max << SCHED_CAPACITY_SHIFT) / cpuinfo->max_freq;
+
+	pr_debug("cpus %*pbl cur max/max freq %u/%u kHz max freq scale %lu\n",
+		 cpumask_pr_args(policy->cpus), policy->max, cpuinfo->max_freq,
+		 scale);
+
+	for_each_cpu(cpu, policy->cpus)
+		per_cpu(max_freq_scale, cpu) = scale;
+}
+
+unsigned long cpufreq_scale_freq_capacity(struct sched_domain *sd, int cpu)
+{
+	return per_cpu(freq_scale, cpu);
+}
+
+unsigned long cpufreq_scale_max_freq_capacity(int cpu)
+{
+	return per_cpu(max_freq_scale, cpu);
+}
+
 static void __cpufreq_notify_transition(struct cpufreq_policy *policy,
 		struct cpufreq_freqs *freqs, unsigned int state)
 {
@@ -371,7 +429,6 @@ static void cpufreq_notify_post_transition(struct cpufreq_policy *policy,
 void cpufreq_freq_transition_begin(struct cpufreq_policy *policy,
 		struct cpufreq_freqs *freqs)
 {
-
 	/*
 	 * Catch double invocations of _begin() which lead to self-deadlock.
 	 * ASYNC_NOTIFICATION drivers are left out because the cpufreq core
@@ -397,6 +454,8 @@ wait:
 	policy->transition_task = current;
 
 	spin_unlock(&policy->transition_lock);
+
+	scale_freq_capacity(policy, freqs);
 
 	cpufreq_notify_transition(policy, freqs, CPUFREQ_PRECHANGE);
 }
@@ -524,10 +583,32 @@ static ssize_t show_##file_name				\
 	return sprintf(buf, "%u\n", policy->object);	\
 }
 
+/* HACK: Prevent big cluster turned off when changing governor settings. */
+#ifdef CONFIG_MSM_HOTPLUG
+extern bool prevent_big_off;
+
+static void prevent_big_off_cancel(struct work_struct *prevent_big_off_cancel_work)
+{
+	prevent_big_off = false;
+}
+static DECLARE_DELAYED_WORK(prevent_big_off_cancel_work, prevent_big_off_cancel);
+
+static ssize_t show_scaling_min_freq
+(struct cpufreq_policy *policy, char *buf)
+{
+	prevent_big_off = true;
+	cancel_delayed_work(&prevent_big_off_cancel_work);
+	schedule_delayed_work(&prevent_big_off_cancel_work,
+			msecs_to_jiffies(5000));
+	return sprintf(buf, "%u\n", policy->min);
+}
+#else
+show_one(scaling_min_freq, min);
+#endif
+
 show_one(cpuinfo_min_freq, cpuinfo.min_freq);
 show_one(cpuinfo_max_freq, cpuinfo.max_freq);
 show_one(cpuinfo_transition_latency, cpuinfo.transition_latency);
-show_one(scaling_min_freq, min);
 show_one(scaling_max_freq, max);
 
 static ssize_t show_scaling_cur_freq(
@@ -751,6 +832,7 @@ static ssize_t show_bios_limit(struct cpufreq_policy *policy, char *buf)
 	return sprintf(buf, "%u\n", policy->cpuinfo.max_freq);
 }
 
+
 #ifdef CONFIG_VOLTAGE_CONTROL
 extern ssize_t get_Voltages(char *buf);
 static ssize_t show_UV_mV_table(struct cpufreq_policy *policy, char *buf)
@@ -799,6 +881,7 @@ static struct attribute *default_attrs[] = {
 #ifdef CONFIG_VOLTAGE_CONTROL
 	&UV_mV_table.attr,
 #endif
+
 	NULL
 };
 
@@ -1140,7 +1223,7 @@ static void cpufreq_policy_put_kobj(struct cpufreq_policy *policy)
 	 * proceed with unloading.
 	 */
 	pr_debug("waiting for dropping of refcount\n");
-	wait_for_completion(cmp);
+	wait_for_completion_interruptible(cmp);
 	pr_debug("wait complete\n");
 }
 
@@ -1271,6 +1354,9 @@ static int __cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 	if (!recover_policy) {
 		policy->user_policy.min = policy->min;
 		policy->user_policy.max = policy->max;
+	} else {
+		policy->min = policy->user_policy.min;
+		policy->max = policy->user_policy.max;
 	}
 
 	down_write(&policy->rwsem);
@@ -1535,8 +1621,10 @@ static int __cpufreq_remove_dev_finish(struct device *dev,
 		list_del(&policy->policy_list);
 		write_unlock_irqrestore(&cpufreq_driver_lock, flags);
 
-		if (!cpufreq_suspended)
+		if (!cpufreq_suspended) {
+			flush_work(&policy->update);
 			cpufreq_policy_free(policy);
+		}
 	} else if (has_target()) {
 		ret = __cpufreq_governor(policy, CPUFREQ_GOV_START);
 		if (!ret)
@@ -2285,6 +2373,8 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
 			CPUFREQ_NOTIFY, new_policy);
 
+	scale_freq_capacity(new_policy, NULL);
+
 	policy->min = new_policy->min;
 	policy->max = new_policy->max;
 	trace_cpu_frequency_limits(policy->max, policy->min, policy->cpu);
@@ -2427,7 +2517,7 @@ static int cpufreq_cpu_callback(struct notifier_block *nfb,
 static struct notifier_block __refdata cpufreq_cpu_notifier = {
 	.notifier_call = cpufreq_cpu_callback,
 };
-
+#if defined CONFIG_MACH_ZUK_Z2_PLUS
 int cpufreq_overfreq(unsigned int enable)
 {
 	struct cpufreq_frequency_table *freq_table;
@@ -2466,9 +2556,9 @@ int cpufreq_overfreq(unsigned int enable)
 			__cpufreq_governor(policy, CPUFREQ_GOV_START);
 		}
 	}
-
 	return ret;
 }
+#endif
 /*********************************************************************
  *               BOOST						     *
  *********************************************************************/
