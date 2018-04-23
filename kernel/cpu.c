@@ -27,6 +27,10 @@
 
 #include "smpboot.h"
 
+#ifdef CONFIG_MSM_HOTPLUG
+#include <linux/msm_hotplug.h>
+#endif
+
 #ifdef CONFIG_SMP
 /* Serializes the updates to cpu_online_mask, cpu_present_mask */
 static DEFINE_MUTEX(cpu_add_remove_lock);
@@ -516,7 +520,12 @@ out:
 int cpu_up(unsigned int cpu)
 {
 	int err = 0;
-
+#ifdef CONFIG_MSM_HOTPLUG
+	if (msm_hotplug_scr_suspended && msm_enabled) {
+		if (cpu >= 4 && !msm_hotplug_fingerprint_called)
+			return 0;
+	}
+#endif
 	if (!cpu_possible(cpu)) {
 		pr_err("can't online cpu %d because it is not configured as may-hotadd at boot time\n",
 		       cpu);
