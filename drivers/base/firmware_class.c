@@ -302,7 +302,9 @@ static const char * const fw_path[] = {
 	"/lib/firmware/updates/" UTS_RELEASE,
 	"/lib/firmware/updates",
 	"/lib/firmware/" UTS_RELEASE,
-	"/lib/firmware"
+	"/lib/firmware",
+	"/lib64/firmware",
+	"/lib/firmware/image"
 };
 
 /*
@@ -1116,7 +1118,6 @@ static int fw_load_from_user_helper(struct firmware *firmware,
 	return _request_firmware_load(fw_priv, desc->opt_flags, timeout);
 }
 
-#ifdef CONFIG_PM_SLEEP
 /* kill pending requests without uevent to avoid blocking suspend */
 static void kill_requests_without_uevent(void)
 {
@@ -1130,7 +1131,6 @@ static void kill_requests_without_uevent(void)
 	}
 	mutex_unlock(&fw_lock);
 }
-#endif
 
 #else /* CONFIG_FW_LOADER_USER_HELPER */
 static inline int
@@ -1148,7 +1148,6 @@ static inline void kill_requests_without_uevent(void) { }
 #endif
 
 #endif /* CONFIG_FW_LOADER_USER_HELPER */
-
 
 /* wait until the shared firmware_buf becomes ready (or error) */
 static int sync_cached_firmware_buf(struct firmware_buf *buf)
@@ -1594,7 +1593,6 @@ request_firmware_nowait_into_buf(
 }
 EXPORT_SYMBOL_GPL(request_firmware_nowait_into_buf);
 
-#ifdef CONFIG_PM_SLEEP
 static ASYNC_DOMAIN_EXCLUSIVE(fw_cache_domain);
 
 /**
@@ -1921,12 +1919,6 @@ static int fw_suspend(void)
 static struct syscore_ops fw_syscore_ops = {
 	.suspend = fw_suspend,
 };
-#else
-static int fw_cache_piggyback_on_request(const char *name)
-{
-	return 0;
-}
-#endif
 
 static void __init fw_cache_init(void)
 {
@@ -1934,7 +1926,6 @@ static void __init fw_cache_init(void)
 	INIT_LIST_HEAD(&fw_cache.head);
 	fw_cache.state = FW_LOADER_NO_CACHE;
 
-#ifdef CONFIG_PM_SLEEP
 	spin_lock_init(&fw_cache.name_lock);
 	INIT_LIST_HEAD(&fw_cache.fw_names);
 
@@ -1945,7 +1936,6 @@ static void __init fw_cache_init(void)
 	register_pm_notifier(&fw_cache.pm_notify);
 
 	register_syscore_ops(&fw_syscore_ops);
-#endif
 }
 
 static int __init firmware_class_init(void)
@@ -1961,10 +1951,9 @@ static int __init firmware_class_init(void)
 
 static void __exit firmware_class_exit(void)
 {
-#ifdef CONFIG_PM_SLEEP
 	unregister_syscore_ops(&fw_syscore_ops);
 	unregister_pm_notifier(&fw_cache.pm_notify);
-#endif
+
 #ifdef CONFIG_FW_LOADER_USER_HELPER
 	unregister_reboot_notifier(&fw_shutdown_nb);
 	class_unregister(&firmware_class);
