@@ -116,6 +116,14 @@ config ARM_GLOBAL_TIMER
 	help
 	  This options enables support for the ARM global timer unit
 
+config ARM_ARCH_TIMER_VCT_ACCESS
+	bool "Support for ARM architected timer virtual counter access in userspace"
+	default n
+	depends on ARM_ARCH_TIMER
+	help
+	  This option enables support for reading the ARM architected timer's
+	  virtual counter in userspace.
+
 config CLKSRC_ARM_GLOBAL_TIMER_SCHED_CLOCK
 	bool
 	depends on ARM_GLOBAL_TIMER
